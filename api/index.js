@@ -6,7 +6,6 @@ import Person from "../models/person.js";
 
 const PORT = process.env.PORT;
 const app = express();
-
 const infoPage = () => {
   const date = new Date();
 
@@ -49,7 +48,7 @@ app.get("/api/persons/", (req, res) => {
   }
 });
 
-app.post("/api/persons", (req, res) => {
+app.post("/api/persons", (req, res, next) => {
   const body = req.body;
 
   const newPerson = new Person({
@@ -57,48 +56,62 @@ app.post("/api/persons", (req, res) => {
     number: body.number,
   });
 
-  newPerson.save().then((savedNote) => {
-    res.json(savedNote);
-  });
+  newPerson
+    .save()
+    .then((savedNote) => {
+      res.json(savedNote);
+    })
+    .catch((error) => next(error));
 });
 
-app.get("/api/persons/:id", (req, res) => {
-  // if (persons[req.params.id - 1]) {
-  //   res.send(persons[req.params.id - 1]);
-  //   res.status(200).end();
-  // } else {
-  //   res.status(404).end();
-  // }
-
-  Person.findById(req.params.id).then((person) => {
-    res.json(person);
-  });
+app.get("/api/persons/:id", (req, res, next) => {
+  Person.findById(req.params.id)
+    .then((person) => {
+      res.json(person);
+    })
+    .catch((error) => next(error));
 });
 
-app.delete("/api/persons/:id", (req, res) => {
-  // User.findByIdAndDelete(req.params.id, function (err, docs) {
-  //   if (err) {
-  //     console.log(err);
-  //   } else {
-  //     console.log("Deleted : ", docs);
-  //   }
-  // });
+app.delete("/api/persons/:id", (req, res, next) => {
+  const id = req.params.id;
+  Person.findByIdAndRemove(id)
+    .then((result) => {
+      result === null && res.status(404).end();
+      res.status(204).end();
+    })
+    .catch((error) => next(error));
+});
 
-  if (persons[req.params.id - 1]) {
-    const id = Number(req.params.id - 1);
-    persons = persons.filter((person) => person.id !== id);
+app.put("/api/persons/:id", (req, res, next) => {
+  const id = req.params.id;
+  const person = {
+    name: req.body.name,
+    number: req.body.number,
+  };
 
-    res.status(200).send({ message: "Person deleted successfully" });
-  } else {
-    res.status(404).send({ message: "Person not found" });
-  }
+  Person.findByIdAndUpdate(id, person, { new: true })
+    .then((updatedPerson) => {
+      res.json(updatedPerson);
+    })
+    .catch((error) => next(error));
 });
 
 const unknownEndpoint = (request, response) => {
   response.status(404).send({ error: "unknown endpoint" });
 };
 
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  }
+
+  next(error);
+};
+
 app.use(unknownEndpoint);
+app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
